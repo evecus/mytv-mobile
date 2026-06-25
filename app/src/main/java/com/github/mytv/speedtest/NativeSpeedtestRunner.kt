@@ -7,38 +7,28 @@ import java.io.File
 /**
  * 调用打包进 APK 的 Rust 测速二进制。
  *
- * Rust 端完成全部测速、整理、去重、排序工作，直接输出 m3u8 文件。
- * Kotlin 侧只负责启动进程、转发进度日志、等待结束。
+ * 修复说明（Android 10+ 兼容）：
+ *   Android 10 引入 W^X 限制，App 私有目录（filesDir/cacheDir）中的文件
+ *   即使 setExecutable(true) 也无法被 exec，会报 EACCES / ENOEXEC。
+ *   低版本 Android 没有此限制，因此原来的"复制到 filesDir 再执行"只在低版本有效。
+ *
+ *   正确做法（参考 CableBee）：直接使用系统在安装时写入的 nativeLibraryDir 路径，
+ *   该目录由系统管理，已具备可执行权限，无需复制也无需 setExecutable。
  */
 object NativeSpeedtestRunner {
 
-    private const val TAG = "NativeSpeedtestRunner"
-    private const val SO_NAME  = "libiptv_speedtest.so"
-    private const val BIN_NAME = "iptv_speedtest"
+    private const val TAG     = "NativeSpeedtestRunner"
+    private const val SO_NAME = "libiptv_speedtest.so"
 
     /**
-     * 将 so 从 nativeLibraryDir 复制到 filesDir 并赋予执行权限。
-     * 已存在且大小相同时跳过。
-     * @return 可执行文件绝对路径
+     * 返回 nativeLibraryDir 中二进制的绝对路径。
+     * 不做任何复制或权限修改——nativeLibraryDir 由系统安装时写入，已可执行。
      */
     fun prepare(context: Context): String {
-        val src  = File(context.applicationInfo.nativeLibraryDir, SO_NAME)
-        val dest = File(context.filesDir, BIN_NAME)
-
-        if (!src.exists()) {
-            error("native binary not found: ${src.absolutePath}")
-        }
-
-        if (!dest.exists() || dest.length() != src.length()) {
-            Log.i(TAG, "copying binary → ${dest.absolutePath}")
-            src.copyTo(dest, overwrite = true)
-        }
-
-        if (!dest.canExecute()) {
-            dest.setExecutable(true, true)
-        }
-
-        return dest.absolutePath
+        val bin = File(context.applicationInfo.nativeLibraryDir, SO_NAME)
+        check(bin.exists()) { "native binary not found: ${bin.absolutePath}" }
+        Log.i(TAG, "binary: ${bin.absolutePath} (${bin.length()} bytes)")
+        return bin.absolutePath
     }
 
     /**
@@ -74,6 +64,11 @@ object NativeSpeedtestRunner {
         Log.i(TAG, "exec: ${cmd.joinToString(" ")}")
 
         val process = ProcessBuilder(cmd)
+            .apply {
+                // 给二进制提供可写的 HOME/TMPDIR，避免因默认路径不可写而崩溃
+                environment()["HOME"]   = context.filesDir.absolutePath
+                environment()["TMPDIR"] = context.cacheDir.absolutePath
+            }
             .redirectErrorStream(false)
             .start()
 
