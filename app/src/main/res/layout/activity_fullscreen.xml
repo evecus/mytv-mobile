@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 全屏播放界面 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/fullscreen_root"
@@ -25,11 +24,11 @@
         android:indeterminateTint="@color/white"
         android:visibility="gone"/>
 
-    <!-- 全屏控制栏（点击后显示，3秒消失） -->
+    <!-- 全屏控制栏 -->
     <LinearLayout
         android:id="@+id/fullscreen_controls"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="72dp"
         android:layout_gravity="bottom"
         android:background="@drawable/bg_player_controls"
         android:gravity="center_vertical"
@@ -37,35 +36,38 @@
         android:paddingHorizontal="24dp"
         android:visibility="gone">
 
+        <!-- 暂停/播放 -->
         <ImageButton
             android:id="@+id/btn_fs_play_pause"
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_media_pause"
-            android:tint="@color/white"/>
+            android:src="@drawable/ic_pause"
+            android:scaleType="fitCenter"/>
 
+        <!-- 重试 -->
         <ImageButton
             android:id="@+id/btn_fs_retry"
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:layout_marginStart="12dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:tint="@color/white"/>
+            android:src="@drawable/ic_refresh"
+            android:scaleType="fitCenter"/>
 
         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
 
+        <!-- 退出全屏（缩小图标） -->
         <ImageButton
             android:id="@+id/btn_fs_exit"
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:tint="@color/white"/>
+            android:src="@drawable/ic_fullscreen_exit"
+            android:scaleType="fitCenter"/>
     </LinearLayout>
 
-    <!-- 频道名显示（全屏左上角，切台时短暂显示） -->
+    <!-- 频道名（左上角短暂显示） -->
     <TextView
         android:id="@+id/tv_fs_channel_name"
         android:layout_width="wrap_content"
