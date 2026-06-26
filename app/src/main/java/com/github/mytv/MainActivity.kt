@@ -1,6 +1,7 @@
 package com.github.mytv
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -56,6 +57,10 @@ class MainActivity : FragmentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { portraitControls.visibility = View.GONE }
 
+    /** 是否平板（sw >= 600dp） */
+    private val isTablet: Boolean
+        get() = resources.configuration.smallestScreenWidthDp >= 600
+
     @OptIn(UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +79,23 @@ class MainActivity : FragmentActivity() {
         if (SP.lastSpeedtest == 0L || SP.autoSpeedtest) {
             SpeedtestDialogFragment.show(this)
         }
+    }
+
+    /**
+     * 平板横屏时系统会选择 layout-sw600dp/activity_main.xml，
+     * 竖屏/手机用默认 layout/activity_main.xml。
+     * configChanges 保留 orientation|screenSize，
+     * 系统不会重建 Activity，需手动 setContentView 再重绑。
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 重新加载布局（系统会根据当前配置自动选择正确的 layout 文件夹）
+        setContentView(R.layout.activity_main)
+        bindViews()
+        setupPlayer()           // 重新绑定已有 player
+        setupListeners()
+        setupGroupList()
+        buildChannelData()      // 恢复列表状态
     }
 
     private fun bindViews() {
@@ -97,27 +119,34 @@ class MainActivity : FragmentActivity() {
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
-        player = ExoPlayer.Builder(this).build()
+        // 复用已有 player，避免旋转时重建
+        if (player == null) {
+            player = ExoPlayer.Builder(this).build()
+        }
         playerView.player = player
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isPlaying) {
-                    loadingOverlay.visibility = View.GONE
-                    errorOverlay.visibility   = View.GONE
-                }
-            }
-            override fun onPlayerError(error: PlaybackException) {
+        // 清掉旧监听，重新注册
+        player?.removeListener(playerListener)
+        player?.addListener(playerListener)
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (isPlaying) {
                 loadingOverlay.visibility = View.GONE
-                errorOverlay.visibility   = View.VISIBLE
-                errorMsg.text             = "播放错误，请尝试换线路"
+                errorOverlay.visibility   = View.GONE
             }
-            override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_BUFFERING) {
-                    loadingOverlay.visibility = View.VISIBLE
-                    errorOverlay.visibility   = View.GONE
-                }
+        }
+        override fun onPlayerError(error: PlaybackException) {
+            loadingOverlay.visibility = View.GONE
+            errorOverlay.visibility   = View.VISIBLE
+            errorMsg.text             = "播放错误，请尝试换线路"
+        }
+        override fun onPlaybackStateChanged(state: Int) {
+            if (state == Player.STATE_BUFFERING) {
+                loadingOverlay.visibility = View.VISIBLE
+                errorOverlay.visibility   = View.GONE
             }
-        })
+        }
     }
 
     private fun setupListeners() {
@@ -166,7 +195,12 @@ class MainActivity : FragmentActivity() {
             tvListViewModel.getTVViewModel(currentPosition)?.switchSource(+1)
         }
         btnSettings.setOnClickListener {
-            SettingsBottomSheet.show(this)
+            if (isTablet) {
+                // 平板：使用居中 Dialog，避免 BottomSheet 显示不全
+                SettingsDialogFragment.show(this)
+            } else {
+                SettingsBottomSheet.show(this)
+            }
         }
     }
 
@@ -339,6 +373,7 @@ class MainActivity : FragmentActivity() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)
         player?.release()
+        player = null
     }
 
     // ── GroupAdapter ───────────────────────────────────────────────
@@ -378,7 +413,6 @@ class MainActivity : FragmentActivity() {
         private var selectedPos = -1
 
         fun setSelected(pos: Int) { selectedPos = pos; notifyDataSetChanged() }
-        /** 用 getViewModel 避免与 BaseAdapter.getItem 签名冲突 */
         fun getViewModel(pos: Int): TVViewModel? = items.getOrNull(pos)
 
         override fun getCount() = items.size
