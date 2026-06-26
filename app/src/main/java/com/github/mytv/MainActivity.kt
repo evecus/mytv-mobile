@@ -38,14 +38,18 @@ class MainActivity : FragmentActivity() {
     private lateinit var tvChannelName: TextView
     private lateinit var sourceRow: LinearLayout
     private lateinit var tvSourceLabel: TextView
-    private lateinit var btnSourcePrev: ImageButton
-    private lateinit var btnSourceNext: ImageButton
+    // 源切换改为 TextView（显示 < > 文字箭头）
+    private lateinit var btnSourcePrev: TextView
+    private lateinit var btnSourceNext: TextView
     private lateinit var btnSettings: ImageButton
     private lateinit var groupList: ListView
     private lateinit var channelList: ListView
 
     private var player: ExoPlayer? = null
     private var isPlayerPlaying = true
+
+    /** 是否已经开始过播放（用于区分冷启动黑屏与用户手动选台） */
+    private var hasStartedPlayback = false
 
     private var tvListViewModel = TVListViewModel()
     private var currentPosition = 0
@@ -57,7 +61,6 @@ class MainActivity : FragmentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val hideControlsRunnable = Runnable { portraitControls.visibility = View.GONE }
 
-    /** 是否平板（sw >= 600dp） */
     private val isTablet: Boolean
         get() = resources.configuration.smallestScreenWidthDp >= 600
 
@@ -81,21 +84,14 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    /**
-     * 平板横屏时系统会选择 layout-sw600dp/activity_main.xml，
-     * 竖屏/手机用默认 layout/activity_main.xml。
-     * configChanges 保留 orientation|screenSize，
-     * 系统不会重建 Activity，需手动 setContentView 再重绑。
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // 重新加载布局（系统会根据当前配置自动选择正确的 layout 文件夹）
         setContentView(R.layout.activity_main)
         bindViews()
-        setupPlayer()           // 重新绑定已有 player
+        setupPlayer()
         setupListeners()
         setupGroupList()
-        buildChannelData()      // 恢复列表状态
+        buildChannelData()
     }
 
     private fun bindViews() {
@@ -110,8 +106,8 @@ class MainActivity : FragmentActivity() {
         tvChannelName    = findViewById(R.id.tv_channel_name)
         sourceRow        = findViewById(R.id.source_row)
         tvSourceLabel    = findViewById(R.id.tv_source_label)
-        btnSourcePrev    = findViewById(R.id.btn_source_prev)
-        btnSourceNext    = findViewById(R.id.btn_source_next)
+        btnSourcePrev    = findViewById(R.id.btn_source_prev)   // TextView
+        btnSourceNext    = findViewById(R.id.btn_source_next)   // TextView
         btnSettings      = findViewById(R.id.btn_settings)
         groupList        = findViewById(R.id.group_list)
         channelList      = findViewById(R.id.channel_list)
@@ -119,12 +115,10 @@ class MainActivity : FragmentActivity() {
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
-        // 复用已有 player，避免旋转时重建
         if (player == null) {
             player = ExoPlayer.Builder(this).build()
         }
         playerView.player = player
-        // 清掉旧监听，重新注册
         player?.removeListener(playerListener)
         player?.addListener(playerListener)
     }
@@ -150,7 +144,9 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun setupListeners() {
+        // 播放区点击显示/隐藏控制栏（仅在已开始播放时响应）
         playerView.setOnClickListener {
+            if (!hasStartedPlayback) return@setOnClickListener
             if (portraitControls.visibility == View.VISIBLE) {
                 portraitControls.visibility = View.GONE
             } else {
@@ -164,11 +160,11 @@ class MainActivity : FragmentActivity() {
             if (player?.isPlaying == true) {
                 player?.pause()
                 isPlayerPlaying = false
-                btnPlayPause.setImageResource(android.R.drawable.ic_media_play)
+                btnPlayPause.setImageResource(R.drawable.ic_play)
             } else {
                 player?.play()
                 isPlayerPlaying = true
-                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause)
+                btnPlayPause.setImageResource(R.drawable.ic_pause)
             }
             scheduleHideControls()
         }
@@ -194,9 +190,9 @@ class MainActivity : FragmentActivity() {
         btnSourceNext.setOnClickListener {
             tvListViewModel.getTVViewModel(currentPosition)?.switchSource(+1)
         }
+
         btnSettings.setOnClickListener {
             if (isTablet) {
-                // 平板：使用居中 Dialog，避免 BottomSheet 显示不全
                 SettingsDialogFragment.show(this)
             } else {
                 SettingsBottomSheet.show(this)
@@ -233,13 +229,14 @@ class MainActivity : FragmentActivity() {
 
         groupAdapter.setItems(groupNames)
 
+        // 恢复上次选中位置，但不自动播放
         currentPosition = SP.itemPosition.coerceIn(0, (tvListViewModel.size() - 1).coerceAtLeast(0))
         currentGroupIndex = tvListViewModel.getTVViewModel(currentPosition)?.getRowPosition() ?: 0
         groupAdapter.setSelected(currentGroupIndex)
         showGroupChannels(currentGroupIndex)
 
+        // 仅注册观察者，不触发 changed("init")，避免冷启动自动播放
         attachObservers()
-        tvListViewModel.getTVViewModel(currentPosition)?.changed("init")
     }
 
     private fun attachObservers() {
@@ -296,11 +293,20 @@ class MainActivity : FragmentActivity() {
             val clickedVm = channelAdapter?.getViewModel(position) ?: return@setOnItemClickListener
             channelAdapter?.setSelected(position)
             val newId = clickedVm.getTV().id
+
+            // ── 修复 sourceIndex bug：切换频道时重置源索引到 0 ──
+            clickedVm.getTV().sourceIndex = 0
+
+            hasStartedPlayback = true   // 用户手动点台，允许播放
+
             if (newId != currentPosition) {
                 currentPosition = newId
                 tvListViewModel.setItemPosition(currentPosition)
                 clickedVm.changed("menu")
                 attachObservers()
+            } else {
+                // 同一频道再次点击也触发播放（例如重试）
+                playChannel(clickedVm)
             }
         }
     }
@@ -318,13 +324,17 @@ class MainActivity : FragmentActivity() {
         player?.setMediaItem(MediaItem.fromUri(url))
         player?.playWhenReady = true
         player?.prepare()
+
+        isPlayerPlaying = true
+        btnPlayPause.setImageResource(R.drawable.ic_pause)
     }
 
     private fun updateSourceUI(vm: TVViewModel) {
         val total = vm.getTV().videoUrl.size
         if (total > 1) {
             sourceRow.visibility = View.VISIBLE
-            val idx = vm.videoIndex.value ?: 0
+            // ── 修复：使用 sourceIndex 而非 videoIndex LiveData ──
+            val idx = vm.getTV().sourceIndex
             tvSourceLabel.text = "线路 ${idx + 1}/$total"
         } else {
             sourceRow.visibility = View.GONE
@@ -366,7 +376,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (isPlayerPlaying) player?.play()
+        if (isPlayerPlaying && hasStartedPlayback) player?.play()
     }
 
     override fun onDestroy() {
@@ -376,7 +386,7 @@ class MainActivity : FragmentActivity() {
         player = null
     }
 
-    // ── GroupAdapter ───────────────────────────────────────────────
+    // ── GroupAdapter ──────────────────────────────────────────────
 
     inner class GroupAdapter : BaseAdapter() {
         private val items = mutableListOf<String>()
@@ -407,7 +417,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    // ── ChannelAdapter ─────────────────────────────────────────────
+    // ── ChannelAdapter ────────────────────────────────────────────
 
     inner class ChannelAdapter(private val items: List<TVViewModel>) : BaseAdapter() {
         private var selectedPos = -1
