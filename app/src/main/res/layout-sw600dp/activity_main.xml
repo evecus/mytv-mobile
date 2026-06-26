@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  平板横屏专用布局 (sw >= 600dp)
+  左侧：播放器(上) + 信息栏/线路/设置(下)
+  右侧：频道分组列表 + 频道编号&名称列表
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@color/surface_variant">
+
+    <!-- ══════════════════════════════════════
+         左侧：占屏幕宽度的 55%
+         上半 = 播放器，下半 = 信息栏
+         ══════════════════════════════════════ -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="55"
+        android:orientation="vertical"
+        android:background="@color/surface_variant">
+
+        <!-- ── 播放器区域（左上） ── -->
+        <FrameLayout
+            android:id="@+id/player_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="62"
+            android:background="@color/player_bg">
+
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/player_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:use_controller="false"
+                app:resize_mode="fit"
+                app:shutter_background_color="@android:color/transparent"/>
+
+            <!-- Loading 覆盖层 -->
+            <FrameLayout
+                android:id="@+id/loading_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/player_bg"
+                android:visibility="visible">
+                <ProgressBar
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_gravity="center"
+                    android:indeterminate="true"
+                    android:indeterminateTint="@color/white"/>
+            </FrameLayout>
+
+            <!-- Error 覆盖层 -->
+            <LinearLayout
+                android:id="@+id/error_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@color/player_bg"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:visibility="gone">
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/sad_cloud"/>
+                <TextView
+                    android:id="@+id/error_msg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"/>
+            </LinearLayout>
+
+            <!-- 点击播放区弹出的浮层控制栏 -->
+            <LinearLayout
+                android:id="@+id/portrait_controls"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/bg_player_controls"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="20dp"
+                android:visibility="gone">
+
+                <ImageButton
+                    android:id="@+id/btn_play_pause"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_media_pause"
+                    android:tint="@color/white"/>
+
+                <ImageButton
+                    android:id="@+id/btn_retry"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    android:tint="@color/white"/>
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"/>
+
+                <!-- 全屏按钮：平板小屏模式下进入全屏 Activity -->
+                <ImageButton
+                    android:id="@+id/btn_fullscreen"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_zoom"
+                    android:tint="@color/white"/>
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- ── 信息栏（左下） ── -->
+        <LinearLayout
+            android:id="@+id/info_card"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="38"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginTop="6dp"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_card_elevated"
+            android:elevation="2dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp">
+
+            <!-- 频道名 + 线路切换 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_channel_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="未播放"
+                    android:textColor="@color/on_surface"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
+
+                <LinearLayout
+                    android:id="@+id/source_row"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:visibility="gone">
+
+                    <ImageButton
+                        android:id="@+id/btn_source_prev"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_media_previous"
+                        android:tint="@color/on_surface_secondary"/>
+
+                    <TextView
+                        android:id="@+id/tv_source_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="6dp"
+                        android:textColor="@color/on_surface_secondary"
+                        android:textSize="13sp"
+                        android:text="线路 1/1"/>
+
+                    <ImageButton
+                        android:id="@+id/btn_source_next"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@android:drawable/ic_media_next"
+                        android:tint="@color/on_surface_secondary"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 分享按钮 -->
+            <ImageButton
+                android:id="@+id/btn_cast"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_icon_button"
+                android:padding="9dp"
+                android:src="@android:drawable/ic_menu_share"
+                android:tint="@color/on_surface_secondary"/>
+
+            <!-- 设置按钮 -->
+            <ImageButton
+                android:id="@+id/btn_settings"
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_icon_button"
+                android:padding="9dp"
+                android:src="@android:drawable/ic_menu_preferences"
+                android:tint="@color/on_surface_secondary"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 左右分隔线 -->
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="@color/divider"/>
+
+    <!-- ══════════════════════════════════════
+         右侧：占屏幕宽度的 45%
+         频道分组（窄列）+ 频道编号&名称（宽列）
+         ══════════════════════════════════════ -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="45"
+        android:orientation="horizontal"
+        android:background="@color/surface">
+
+        <!-- 频道分组列表 -->
+        <ListView
+            android:id="@+id/group_list"
+            android:layout_width="130dp"
+            android:layout_height="match_parent"
+            android:divider="@null"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbarStyle="insideOverlay"
+            android:scrollbars="none"/>
+
+        <!-- 分隔线 -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="@color/divider"/>
+
+        <!-- 频道列表（编号 + 名称） -->
+        <ListView
+            android:id="@+id/channel_list"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbarStyle="insideOverlay"
+            android:scrollbars="none"/>
+    </LinearLayout>
+
+</LinearLayout>
